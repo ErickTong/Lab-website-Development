@@ -22,6 +22,12 @@ export default function Home() {
               </div>
             </div>
             <div className="flex items-center gap-4">
+              <Link href="/team">
+                <Button variant="ghost" size="sm">
+                  <Users className="mr-2 h-4 w-4" />
+                  研究团队
+                </Button>
+              </Link>
               <Link href="/research">
                 <Button variant="ghost" size="sm">
                   研究成果
@@ -142,7 +148,15 @@ export default function Home() {
             <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-4">
               研究团队
             </h2>
+            <p className="text-lg text-gray-600 mb-6 max-w-2xl mx-auto">
+              汇聚了果树发育生物学领域的优秀研究人才，致力于旱区果树研究
+            </p>
             <div className="w-24 h-1 bg-green-600 mx-auto"></div>
+            <Link href="/team">
+              <Button variant="outline" className="mt-6">
+                查看全部成员
+              </Button>
+            </Link>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
             {/* Team Member 1 */}

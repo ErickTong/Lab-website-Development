@@ -1,35 +1,33 @@
-"use client"
+'use client'
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import Link from "next/link"
+import { useState } from 'react'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { FlaskConical, Eye, EyeOff } from "lucide-react"
+import { FlaskConical, Eye, EyeOff, AlertCircle } from "lucide-react"
+import Link from "next/link"
 
 export default function LoginPage() {
   const [formData, setFormData] = useState({
-    username: "",
-    password: "",
+    email: '',
+    password: ''
   })
   const [showPassword, setShowPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState("")
-  const router = useRouter()
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
-    setError("")
+    setLoading(true)
+    setError('')
 
     try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify(formData),
       })
@@ -38,115 +36,125 @@ export default function LoginPage() {
 
       if (response.ok) {
         // Store token in localStorage
-        localStorage.setItem("authToken", data.token)
-        localStorage.setItem("user", JSON.stringify(data.user))
+        localStorage.setItem('authToken', data.token)
+        localStorage.setItem('user', JSON.stringify(data.user))
         
         // Redirect to dashboard
-        router.push("/admin")
+        window.location.href = '/admin'
       } else {
-        setError(data.message || "登录失败")
+        setError(data.message || '登录失败')
       }
     } catch (err) {
-      setError("网络错误，请稍后重试")
+      setError('网络错误，请稍后重试')
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
+      [e.target.name]: e.target.value
     })
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <FlaskConical className="h-8 w-8 text-green-600" />
-            <h1 className="text-2xl font-bold text-gray-800">
-              西北旱区果树发育生物学实验室
-            </h1>
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8">
+        {/* Logo and Title */}
+        <div className="text-center">
+          <div className="flex justify-center">
+            <FlaskConical className="h-12 w-12 text-green-600" />
           </div>
-          <p className="text-gray-600">管理系统登录</p>
+          <h2 className="mt-6 text-3xl font-bold text-gray-900">
+            西北旱区果树发育生物学实验室
+          </h2>
+          <p className="mt-2 text-sm text-gray-600">
+            管理系统登录
+          </p>
         </div>
 
+        {/* Login Form */}
         <Card>
-          <CardHeader>
-            <CardTitle>登录</CardTitle>
-            <CardDescription>
-              请输入您的用户名和密码登录系统
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-2xl text-center">登录账户</CardTitle>
+            <CardDescription className="text-center">
+              请输入您的邮箱和密码进行登录
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
                 <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
-
+              
               <div className="space-y-2">
-                <Label htmlFor="username">用户名</Label>
+                <Label htmlFor="email">邮箱地址</Label>
                 <Input
-                  id="username"
-                  name="username"
-                  type="text"
-                  value={formData.username}
-                  onChange={handleChange}
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
                   required
-                  placeholder="请输入用户名"
+                  placeholder="请输入邮箱地址"
+                  value={formData.email}
+                  onChange={handleChange}
                 />
               </div>
-
+              
               <div className="space-y-2">
                 <Label htmlFor="password">密码</Label>
                 <div className="relative">
                   <Input
                     id="password"
                     name="password"
-                    type={showPassword ? "text" : "password"}
-                    value={formData.password}
-                    onChange={handleChange}
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
                     required
                     placeholder="请输入密码"
-                    className="pr-10"
+                    value={formData.password}
+                    onChange={handleChange}
                   />
-                  <Button
+                  <button
                     type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
                     onClick={() => setShowPassword(!showPassword)}
                   >
                     {showPassword ? (
-                      <EyeOff className="h-4 w-4" />
+                      <EyeOff className="h-4 w-4 text-gray-400" />
                     ) : (
-                      <Eye className="h-4 w-4" />
+                      <Eye className="h-4 w-4 text-gray-400" />
                     )}
-                  </Button>
+                  </button>
                 </div>
               </div>
-
-              <Button
-                type="submit"
+              
+              <Button 
+                type="submit" 
                 className="w-full"
-                disabled={isLoading}
+                disabled={loading}
               >
-                {isLoading ? "登录中..." : "登录"}
+                {loading ? '登录中...' : '登录'}
               </Button>
+              
+              <div className="text-center">
+                <Link href="/auth/register" className="text-sm text-green-600 hover:text-green-500">
+                  还没有账户？立即注册
+                </Link>
+              </div>
             </form>
-
-            <div className="mt-6 text-center text-sm">
-              <span className="text-gray-600">还没有账号？</span>
-              <Link href="/auth/register" className="text-green-600 hover:underline ml-1">
-                立即注册
-              </Link>
-            </div>
           </CardContent>
         </Card>
+
+        {/* Back to Home */}
+        <div className="text-center">
+          <Link href="/" className="text-sm text-gray-600 hover:text-gray-900">
+            ← 返回首页
+          </Link>
+        </div>
       </div>
     </div>
   )

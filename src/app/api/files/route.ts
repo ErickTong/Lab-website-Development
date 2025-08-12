@@ -1,57 +1,64 @@
 import { NextRequest, NextResponse } from 'next/server'
-import jwt from 'jsonwebtoken'
 import { db } from '@/lib/db'
+import jwt from 'jsonwebtoken'
 import { writeFile } from 'fs/promises'
-import { join } from 'path'
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
-
-// Middleware to verify JWT token
-function verifyToken(request: NextRequest) {
-  const authHeader = request.headers.get('authorization')
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null
-  }
-  
-  const token = authHeader.substring(7)
-  try {
-    return jwt.verify(token, JWT_SECRET)
-  } catch {
-    return null
-  }
-}
+import path from 'path'
+import { v4 as uuidv4 } from 'uuid'
+import * as fs from 'fs'
 
 export async function GET(request: NextRequest) {
   try {
-    const decoded = verifyToken(request)
-    if (!decoded) {
-      return NextResponse.json(
-        { message: '未授权访问' },
-        { status: 401 }
-      )
-    }
+    const { searchParams } = new URL(request.url)
+    const page = parseInt(searchParams.get('page') || '1')
+    const limit = parseInt(searchParams.get('limit') || '10')
+    const search = searchParams.get('search') || ''
 
-    // Fetch all files
-    const files = await db.file.findMany({
-      include: {
-        uploadedBy: {
-          select: {
-            name: true,
-            username: true
+    const skip = (page - 1) * limit
+
+    // Build where clause
+    const where = search ? {
+      OR: [
+        { filename: { contains: search, mode: 'insensitive' } },
+        { originalName: { contains: search, mode: 'insensitive' } },
+        { mimetype: { contains: search, mode: 'insensitive' } }
+      ]
+    } : {}
+
+    // Get files with pagination
+    const [files, total] = await Promise.all([
+      db.file.findMany({
+        where,
+        include: {
+          uploadedBy: {
+            select: {
+              name: true,
+              email: true
+            }
           }
-        }
-      },
-      orderBy: {
-        createdAt: 'desc'
+        },
+        orderBy: {
+          createdAt: 'desc'
+        },
+        skip,
+        take: limit
+      }),
+      db.file.count({ where })
+    ])
+
+    return NextResponse.json({
+      files,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
       }
     })
-
-    return NextResponse.json(files)
 
   } catch (error) {
     console.error('Error fetching files:', error)
     return NextResponse.json(
-      { message: '服务器错误' },
+      { message: '获取文件失败' },
       { status: 500 }
     )
   }
@@ -59,10 +66,24 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const decoded = verifyToken(request)
-    if (!decoded) {
+    // Get user from token
+    const authHeader = request.headers.get('authorization')
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json(
         { message: '未授权访问' },
+        { status: 401 }
+      )
+    }
+
+    const token = authHeader.substring(7)
+    const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
+    
+    let decoded
+    try {
+      decoded = jwt.verify(token, JWT_SECRET)
+    } catch (error) {
+      return NextResponse.json(
+        { message: '无效的令牌' },
         { status: 401 }
       )
     }
@@ -72,7 +93,7 @@ export async function POST(request: NextRequest) {
 
     if (!file) {
       return NextResponse.json(
-        { message: '没有找到文件' },
+        { message: '未找到文件' },
         { status: 400 }
       )
     }
@@ -81,47 +102,50 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(bytes)
 
     // Generate unique filename
-    const timestamp = Date.now()
-    const randomString = Math.random().toString(36).substring(2, 15)
-    const fileExtension = file.name.split('.').pop()
-    const filename = `${timestamp}-${randomString}.${fileExtension}`
+    const fileExtension = path.extname(file.name)
+    const uniqueFilename = `${uuidv4()}${fileExtension}`
+    
+    // Define upload directory
+    const uploadDir = path.join(process.cwd(), 'public', 'uploads')
+    
+    // Ensure upload directory exists
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true })
+    }
 
-    // Save file to public/uploads directory
-    const path = join(process.cwd(), 'public', 'uploads', filename)
-    await writeFile(path, buffer)
+    // Save file
+    const filePath = path.join(uploadDir, uniqueFilename)
+    await writeFile(filePath, buffer)
 
     // Save file info to database
     const fileRecord = await db.file.create({
       data: {
-        filename,
+        filename: uniqueFilename,
         originalName: file.name,
-        path: `/uploads/${filename}`,
+        path: `/uploads/${uniqueFilename}`,
         size: file.size,
         mimetype: file.type,
-        uploadedById: (decoded as any).userId
+        uploadedById: decoded.userId
       },
       include: {
         uploadedBy: {
           select: {
             name: true,
-            username: true
+            email: true
           }
         }
       }
     })
 
-    const fileUrl = `${process.env.NEXT_PUBLIC_BASE_URL || ''}/uploads/${filename}`
-
     return NextResponse.json({
       message: '文件上传成功',
-      url: fileUrl,
       file: fileRecord
     })
 
   } catch (error) {
     console.error('Error uploading file:', error)
     return NextResponse.json(
-      { message: '服务器错误' },
+      { message: '文件上传失败' },
       { status: 500 }
     )
   }

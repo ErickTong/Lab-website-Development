@@ -1,32 +1,67 @@
 import { NextRequest, NextResponse } from 'next/server'
-import jwt from 'jsonwebtoken'
 import { db } from '@/lib/db'
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
+import jwt from 'jsonwebtoken'
 
 export async function GET(request: NextRequest) {
   try {
-    // Fetch all projects
-    const projects = await db.researchProject.findMany({
-      include: {
-        author: {
-          select: {
-            name: true,
-            username: true
+    const { searchParams } = new URL(request.url)
+    const page = parseInt(searchParams.get('page') || '1')
+    const limit = parseInt(searchParams.get('limit') || '10')
+    const search = searchParams.get('search') || ''
+    const status = searchParams.get('status') || ''
+
+    const skip = (page - 1) * limit
+
+    // Build where clause
+    const where: any = {}
+    
+    if (search) {
+      where.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+        { funding: { contains: search, mode: 'insensitive' } }
+      ]
+    }
+
+    if (status && ['PLANNING', 'ACTIVE', 'COMPLETED', 'SUSPENDED'].includes(status)) {
+      where.status = status
+    }
+
+    // Get projects with pagination
+    const [projects, total] = await Promise.all([
+      db.researchProject.findMany({
+        where,
+        include: {
+          author: {
+            select: {
+              name: true,
+              email: true
+            }
           }
-        }
-      },
-      orderBy: {
-        startDate: 'desc'
+        },
+        orderBy: {
+          startDate: 'desc'
+        },
+        skip,
+        take: limit
+      }),
+      db.researchProject.count({ where })
+    ])
+
+    return NextResponse.json({
+      projects,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
       }
     })
-
-    return NextResponse.json(projects)
 
   } catch (error) {
     console.error('Error fetching projects:', error)
     return NextResponse.json(
-      { message: '服务器错误' },
+      { message: '获取研究项目失败' },
       { status: 500 }
     )
   }
@@ -34,19 +69,35 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const decoded = verifyToken(request)
-    if (!decoded) {
+    const body = await request.json()
+    const { title, description, startDate, endDate, status, funding, budget } = body
+
+    // Get user from token
+    const authHeader = request.headers.get('authorization')
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json(
         { message: '未授权访问' },
         { status: 401 }
       )
     }
 
-    const { title, description, startDate, endDate, status, funding, budget } = await request.json()
+    const token = authHeader.substring(7)
+    const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
+    
+    let decoded
+    try {
+      decoded = jwt.verify(token, JWT_SECRET)
+    } catch (error) {
+      return NextResponse.json(
+        { message: '无效的令牌' },
+        { status: 401 }
+      )
+    }
 
+    // Validate required fields
     if (!title || !startDate) {
       return NextResponse.json(
-        { message: '标题和开始日期不能为空' },
+        { message: '标题和开始日期为必填项' },
         { status: 400 }
       )
     }
@@ -55,49 +106,34 @@ export async function POST(request: NextRequest) {
     const project = await db.researchProject.create({
       data: {
         title,
-        description: description || null,
+        description,
         startDate: new Date(startDate),
         endDate: endDate ? new Date(endDate) : null,
         status: status || 'PLANNING',
-        funding: funding || null,
-        budget: budget || null,
-        authorId: (decoded as any).userId
+        funding,
+        budget: budget ? parseFloat(budget) : null,
+        authorId: decoded.userId
       },
       include: {
         author: {
           select: {
             name: true,
-            username: true
+            email: true
           }
         }
       }
     })
 
     return NextResponse.json({
-      message: '项目创建成功',
+      message: '研究项目创建成功',
       project
     })
 
   } catch (error) {
     console.error('Error creating project:', error)
     return NextResponse.json(
-      { message: '服务器错误' },
+      { message: '创建研究项目失败' },
       { status: 500 }
     )
-  }
-}
-
-// Middleware to verify JWT token
-function verifyToken(request: NextRequest) {
-  const authHeader = request.headers.get('authorization')
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null
-  }
-  
-  const token = authHeader.substring(7)
-  try {
-    return jwt.verify(token, JWT_SECRET)
-  } catch {
-    return null
   }
 }

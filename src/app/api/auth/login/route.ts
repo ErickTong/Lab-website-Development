@@ -1,38 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/lib/db'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
-import { db } from '@/lib/db'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
 
 export async function POST(request: NextRequest) {
   try {
-    const { username, password } = await request.json()
+    const { email, password } = await request.json()
 
-    if (!username || !password) {
+    // Validate input
+    if (!email || !password) {
       return NextResponse.json(
-        { message: '用户名和密码不能为空' },
+        { message: '邮箱和密码不能为空' },
         { status: 400 }
       )
     }
 
-    // Find user by username
+    // Find user by email
     const user = await db.user.findUnique({
-      where: { username }
+      where: { email }
     })
 
     if (!user) {
       return NextResponse.json(
-        { message: '用户名或密码错误' },
+        { message: '邮箱或密码错误' },
         { status: 401 }
       )
     }
 
-    // Check password
+    // Verify password
     const isPasswordValid = await bcrypt.compare(password, user.password)
     if (!isPasswordValid) {
       return NextResponse.json(
-        { message: '用户名或密码错误' },
+        { message: '邮箱或密码错误' },
         { status: 401 }
       )
     }
@@ -41,12 +42,11 @@ export async function POST(request: NextRequest) {
     const token = jwt.sign(
       { 
         userId: user.id, 
-        username: user.username, 
-        email: user.email,
+        email: user.email, 
         role: user.role 
       },
       JWT_SECRET,
-      { expiresIn: '24h' }
+      { expiresIn: '7d' }
     )
 
     // Return user data without password

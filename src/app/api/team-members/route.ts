@@ -4,20 +4,26 @@ import jwt from 'jsonwebtoken'
 
 export async function GET(request: NextRequest) {
   try {
-    const categories = await db.category.findMany({
+    const { searchParams } = new URL(request.url)
+    const active = searchParams.get('active')
+
+    const where = active === 'true' ? { active: true } : {}
+
+    const teamMembers = await db.teamMember.findMany({
+      where,
       orderBy: {
-        name: 'asc'
+        order: 'asc'
       }
     })
 
     return NextResponse.json({
-      categories
+      teamMembers
     })
 
   } catch (error) {
-    console.error('Error fetching categories:', error)
+    console.error('Error fetching team members:', error)
     return NextResponse.json(
-      { message: '获取分类失败' },
+      { message: '获取团队成员失败' },
       { status: 500 }
     )
   }
@@ -26,7 +32,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, description, color } = body
+    const { name, title, bio, email, phone, research, education, order, active } = body
 
     // Get user from token
     const authHeader = request.headers.get('authorization')
@@ -51,40 +57,37 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate required fields
-    if (!name) {
+    if (!name || !title) {
       return NextResponse.json(
-        { message: '分类名称为必填项' },
+        { message: '姓名和职位为必填项' },
         { status: 400 }
       )
     }
 
-    // Generate slug from name
-    const slug = name
-      .toLowerCase()
-      .replace(/[^\w\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .trim()
-
-    // Create category
-    const category = await db.category.create({
+    // Create team member
+    const teamMember = await db.teamMember.create({
       data: {
         name,
-        slug,
-        description,
-        color
+        title,
+        bio,
+        email,
+        phone,
+        research,
+        education,
+        order: order || 0,
+        active: active !== undefined ? active : true
       }
     })
 
     return NextResponse.json({
-      message: '分类创建成功',
-      category
+      message: '团队成员创建成功',
+      teamMember
     })
 
   } catch (error) {
-    console.error('Error creating category:', error)
+    console.error('Error creating team member:', error)
     return NextResponse.json(
-      { message: '创建分类失败' },
+      { message: '创建团队成员失败' },
       { status: 500 }
     )
   }

@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import bcrypt from 'bcryptjs'
 import { db } from '@/lib/db'
+import bcrypt from 'bcryptjs'
 
 export async function POST(request: NextRequest) {
   try {
-    const { username, email, password, name } = await request.json()
+    const { username, email, password, name, role } = await request.json()
 
-    if (!username || !email || !password) {
+    // Validate input
+    if (!username || !email || !password || !name) {
       return NextResponse.json(
-        { message: '用户名、邮箱和密码不能为空' },
+        { message: '所有字段都必须填写' },
         { status: 400 }
       )
     }
@@ -17,8 +18,8 @@ export async function POST(request: NextRequest) {
     const existingUser = await db.user.findFirst({
       where: {
         OR: [
-          { username },
-          { email }
+          { email },
+          { username }
         ]
       }
     })
@@ -31,8 +32,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Hash password
-    const saltRounds = 12
-    const hashedPassword = await bcrypt.hash(password, saltRounds)
+    const hashedPassword = await bcrypt.hash(password, 12)
 
     // Create user
     const user = await db.user.create({
@@ -40,8 +40,8 @@ export async function POST(request: NextRequest) {
         username,
         email,
         password: hashedPassword,
-        name: name || null,
-        role: 'USER' // Default role
+        name,
+        role: role || 'USER'
       }
     })
 
